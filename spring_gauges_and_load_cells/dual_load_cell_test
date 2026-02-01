@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+import time
+import RPi.GPIO as GPIO
+from hx711 import HX711
+
+# --- CONFIG (BCM GPIO numbers) ---
+DATA_PIN1, CLOCK_PIN1 = 5, 6
+DATA_PIN2, CLOCK_PIN2 = 7, 8
+
+SAMPLES_PER_PRINT = 5
+PRINT_HZ = 10
+
+
+def init_hx(data_pin, clock_pin):
+    hx = HX711(dout_pin=data_pin, pd_sck_pin=clock_pin, gain=128, channel='A')
+    ok = hx.reset()
+    return hx, ok
+
+
+def read_avg_raw(hx, samples=5, sleep_s=0.01):
+    vals = []
+    for _ in range(samples):
+        v = hx._read()
+        if v is False:
+            return None
+        vals.append(v)
+        time.sleep(sleep_s)
+    return sum(vals) / len(vals)
+
+
+def main():
+    print("=== TWO LOAD CELLS TEST ===")
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+
+    print(f"HX1: DATA={DATA_PIN1}, CLOCK={CLOCK_PIN1} (BCM)")
+    print(f"HX2: DATA={DATA_PIN2}, CLOCK={CLOCK_PIN2} (BCM)")
+
+    hx1, ok1 = init_hx(DATA_PIN1, CLOCK_PIN1)
+    hx2, ok2 = init_hx(DATA_PIN2, CLOCK_PIN2)
+    print(f"HX1 reset: {'OK' if ok1 else 'FAILED (may still work)'}")
+    print(f"HX2 reset: {'OK' if ok2 else 'FAILED (may still work)'}")
+
+    # Tare both
+    print("Taring both... keep both unloaded for ~1 second.")
+    tare1 = read_avg_raw(hx1, samples=20, sleep_s=0.02)
+    tare2 = read_avg_raw(hx2, samples=20, sleep_s=0.02)
+    if tare1 is None or tare2 is None:
+        print("Failed to read during tare. Check wiring/power.")
+        return
+    print(f"Tare1: {tare1:.0f} | Tare2: {tare2:.0f}")
+
+    period = 1.0 / PRINT_HZ
+    while True:
+        r1 = read_avg_raw(hx1, samples=SAMPLES_PER_PRINT)
+        r2 = read_avg_raw(hx2, samples=SAMPLES_PER_PRINT)
+
+        s1 = "invalid" if r1 is None else f"{r1:.0f} (Δ {r1 - tare1:+.0f})"
+        s2 = "invalid" if r2 is None else f"{r2:.0f} (Δ {r2 - tare2:+.0f})"
+
+        print(f"HX1: {s1}   |   HX2: {s2}")
+        time.sleep(period)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
+    finally:
+        GPIO.cleanup()
