@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+import time
+import RPi.GPIO as GPIO
+from hx711 import HX711
+
+# --- CONFIG (BCM GPIO numbers) ---
+DATA_PIN = 5
+CLOCK_PIN = 6
+SAMPLES_PER_PRINT = 5     # averaging helps stabilize the display
+PRINT_HZ = 10             # prints per second
+
+
+def init_hx(data_pin, clock_pin):
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+
+    hx = HX711(dout_pin=data_pin, pd_sck_pin=clock_pin, gain=128, channel='A')
+    ok = hx.reset()
+    print(f"HX711 reset: {'OK' if ok else 'FAILED (may still work)'}")
+    return hx
+
+
+def read_avg_raw(hx, samples=5, sleep_s=0.01):
+    vals = []
+    for _ in range(samples):
+        v = hx._read()
+        if v is False:
+            return None
+        vals.append(v)
+        time.sleep(sleep_s)
+    return sum(vals) / len(vals)
+
+
+def main():
+    print("=== ONE LOAD CELL TEST ===")
+    print(f"Using DATA={DATA_PIN}, CLOCK={CLOCK_PIN} (BCM)")
+    hx = init_hx(DATA_PIN, CLOCK_PIN)
+
+    # Tare (baseline) so you can see changes more clearly
+    print("Taring... keep the load cell unloaded for ~1 second.")
+    tare = read_avg_raw(hx, samples=20, sleep_s=0.02)
+    if tare is None:
+        print("Failed to read during tare. Check wiring/power.")
+        return
+    print(f"Tare baseline: {tare:.0f}")
+
+    period = 1.0 / PRINT_HZ
+    while True:
+        raw = read_avg_raw(hx, samples=SAMPLES_PER_PRINT)
+        if raw is None:
+            print("invalid data")
+        else:
+            delta = raw - tare
+            print(f"raw={raw:.0f}   delta_from_tare={delta:.0f}")
+        time.sleep(period)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
+    finally:
+        GPIO.cleanup()
