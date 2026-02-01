@@ -62,5 +62,3 @@ if __name__ == "__main__":
         print("\nStopped by user.")
     finally:
         GPIO.cleanup()
-
-https://chatgpt.com/share/697fb074-fe2c-8002-b2f6-ab6c617b9ac9
