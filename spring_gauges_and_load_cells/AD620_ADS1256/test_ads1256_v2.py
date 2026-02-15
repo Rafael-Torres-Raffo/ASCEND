@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""
+Simple ADS1256 Test Script (v2 - lgpio compatible)
+Works on ALL Raspberry Pi models including Pi 5
+"""
+
+import time
+import spidev
+import lgpio
+
+# Pin Configuration
+CS_PIN = 22
+DRDY_PIN = 17
+
+# ADS1256 Commands
+CMD_RESET = 0xFE
+CMD_RREG = 0x10
+CMD_WREG = 0x50
+
+# Registers
+REG_STATUS = 0x00
+REG_MUX = 0x01
+REG_ADCON = 0x02
+REG_DRATE = 0x03
+
+def main():
+    print("=== ADS1256 Basic Communication Test (v2 - lgpio) ===\n")
+    
+    # Setup GPIO using lgpio
+    try:
+        h = lgpio.gpiochip_open(0)  # Open GPIO chip 0
+        print("✓ GPIO chip opened successfully")
+    except Exception as e:
+        print(f"✗ Failed to open GPIO: {e}")
+        return
+    
+    # Configure pins
+    lgpio.gpio_claim_output(h, CS_PIN)
+    lgpio.gpio_claim_input(h, DRDY_PIN)
+    lgpio.gpio_write(h, CS_PIN, 1)  # CS high
+    
+    # Setup SPI
+    spi = spidev.SpiDev()
+    try:
+        spi.open(0, 0)
+        spi.max_speed_hz = 1000000
+        spi.mode = 0b01
+        print("✓ SPI opened successfully")
+    except Exception as e:
+        print(f"✗ Failed to open SPI: {e}")
+        print("  Make sure SPI is enabled: sudo raspi-config")
+        lgpio.gpiochip_close(h)
+        return
+    
+    # Test 1: Reset
+    print("\nTest 1: Sending RESET command...")
+    try:
+        lgpio.gpio_write(h, CS_PIN, 0)
+        spi.writebytes([CMD_RESET])
+        lgpio.gpio_write(h, CS_PIN, 1)
+        time.sleep(0.1)
+        print("✓ RESET command sent")
+    except Exception as e:
+        print(f"✗ RESET failed: {e}")
+        spi.close()
+        lgpio.gpiochip_close(h)
+        return
+    
+    # Test 2: Read STATUS register
+    print("\nTest 2: Reading STATUS register...")
+    try:
+        lgpio.gpio_write(h, CS_PIN, 0)
+        spi.writebytes([CMD_RREG | (REG_STATUS & 0x0F), 0x00])
+        result = spi.readbytes(1)
+        lgpio.gpio_write(h, CS_PIN, 1)
+        print(f"✓ STATUS register: 0x{result[0]:02X}")
+        
+        # Decode status
+        if result[0] & 0x01:
+            print("  - Buffer enabled")
+        else:
+            print("  - Buffer disabled")
+    except Exception as e:
+        print(f"✗ Read STATUS failed: {e}")
+    
+    # Test 3: Read ADCON register  
+    print("\nTest 3: Reading ADCON register...")
+    try:
+        lgpio.gpio_write(h, CS_PIN, 0)
+        spi.writebytes([CMD_RREG | (REG_ADCON & 0x0F), 0x00])
+        result = spi.readbytes(1)
+        lgpio.gpio_write(h, CS_PIN, 1)
+        print(f"✓ ADCON register: 0x{result[0]:02X}")
+        
+        # Decode ADCON
+        gain = result[0] & 0x07
+        gain_values = [1, 2, 4, 8, 16, 32, 64, 64]
+        print(f"  - PGA Gain: {gain_values[gain]}x")
+    except Exception as e:
+        print(f"✗ Read ADCON failed: {e}")
+    
+    # Test 4: Check DRDY pin
+    print("\nTest 4: Checking DRDY pin...")
+    drdy_state = lgpio.gpio_read(h, DRDY_PIN)
+    print(f"  DRDY pin state: {'HIGH' if drdy_state else 'LOW'}")
+    if drdy_state == 0:
+        print("✓ DRDY is LOW (data ready - good!)")
+    else:
+        print("  DRDY is HIGH (waiting or issue)")
+    
+    # Test 5: Write and read back a register
+    print("\nTest 5: Write/read test (DRATE register)...")
+    try:
+        # Write value 0x82 (100 SPS)
+        lgpio.gpio_write(h, CS_PIN, 0)
+        spi.writebytes([CMD_WREG | (REG_DRATE & 0x0F), 0x00, 0x82])
+        lgpio.gpio_write(h, CS_PIN, 1)
+        time.sleep(0.01)
+        
+        # Read back
+        lgpio.gpio_write(h, CS_PIN, 0)
+        spi.writebytes([CMD_RREG | (REG_DRATE & 0x0F), 0x00])
+        result = spi.readbytes(1)
+        lgpio.gpio_write(h, CS_PIN, 1)
+        
+        if result[0] == 0x82:
+            print(f"✓ Write/read successful: 0x{result[0]:02X}")
+        else:
+            print(f"⚠ Write/read mismatch: wrote 0x82, read 0x{result[0]:02X}")
+    except Exception as e:
+        print(f"✗ Write/read test failed: {e}")
+    
+    # Cleanup
+    spi.close()
+    lgpio.gpiochip_close(h)
+    
+    print("\n=== Test Complete ===")
+    print("\nIf all tests passed, your ADS1256 is communicating correctly!")
+    print("You can now run: python3 ads1256_load_cells_v2.py")
+    print("\nIf tests failed, check:")
+    print("  1. SPI is enabled (sudo raspi-config)")
+    print("  2. Wiring connections (especially CS and DRDY pins)")
+    print("  3. Power to ADS1256 board")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+    except Exception as e:
+        print(f"\nUnexpected error: {e}")
+        import traceback
+        traceback.print_exc()
