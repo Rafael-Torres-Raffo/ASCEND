@@ -42,17 +42,28 @@ import spidev
 #          (e.g. "front_left_strut") so the data is self-explanatory later.
 #   ainp : AD7124 input pin wired to the bridge's OUT+  (positive signal)
 #   ainm : AD7124 input pin wired to the bridge's OUT-  (negative signal)
-#   sign : +1 or -1. Flips the direction of the reading. Your original code used
-#          "baseline - raw", which is sign = -1. After you apply a known load
-#          and find a gauge reads backwards, flip its sign here.
+#   sign : +1 or -1. Flips the direction of the reading. Apply a known load to
+#          each load cell; if it reads backwards (negative when it should be
+#          positive), flip that cell's sign here.
 #
 # The ORDER of this list matters: list position = channel number = the CHANNEL
 # register that gets used (index 0 -> CHANNEL_0, index 1 -> CHANNEL_1, ...).
+#
+# ACTUAL WIRING (from the lab):          Signal(+)   Signal(-)
+#   Load Cell 1                            AIN4        AIN5
+#   Load Cell 2                            AIN6        AIN7
+#   Load Cell 3                            AIN11       AIN10
+#   Load Cell 4                            AIN9        AIN8
+# So ainp = the Signal(+) pin and ainm = the Signal(-) pin, i.e. the ADC measures
+# Signal(+) minus Signal(-), the natural direction, so sign = +1.
+# (The old 2-gauge code measured AIN7-AIN6 and AIN5-AIN4, which is Signal(-)
+#  minus Signal(+); that is why it needed "baseline - raw". The final output
+#  direction here is identical to the old code: no behavior change for LC1/LC2.)
 CHANNELS = [
-    {"name": "Gauge1", "ainp": 7, "ainm": 6, "sign": -1},   # AIN7 - AIN6
-    {"name": "Gauge2", "ainp": 5, "ainm": 4, "sign": -1},   # AIN5 - AIN4
-    {"name": "Gauge3", "ainp": 3, "ainm": 2, "sign": -1},   # AIN3 - AIN2
-    {"name": "Gauge4", "ainp": 1, "ainm": 0, "sign": -1},   # AIN1 - AIN0
+    {"name": "LoadCell1", "ainp": 4,  "ainm": 5,  "sign": +1},   # AIN4  - AIN5   (old "Gauge 2")
+    {"name": "LoadCell2", "ainp": 6,  "ainm": 7,  "sign": +1},   # AIN6  - AIN7   (old "Gauge 1")
+    {"name": "LoadCell3", "ainp": 11, "ainm": 10, "sign": +1},   # AIN11 - AIN10  (NEW)
+    {"name": "LoadCell4", "ainp": 9,  "ainm": 8,  "sign": +1},   # AIN9  - AIN8   (NEW)
 ]
 
 # --- Filter speed vs noise  (THE setting that decides your sample rate) -------
