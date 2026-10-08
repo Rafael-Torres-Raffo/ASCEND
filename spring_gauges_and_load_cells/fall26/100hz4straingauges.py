@@ -49,21 +49,23 @@ import spidev
 # The ORDER of this list matters: list position = channel number = the CHANNEL
 # register that gets used (index 0 -> CHANNEL_0, index 1 -> CHANNEL_1, ...).
 #
-# ACTUAL WIRING (from the lab):          Signal(+)   Signal(-)
-#   Load Cell 1                            AIN4        AIN5
-#   Load Cell 2                            AIN6        AIN7
-#   Load Cell 3                            AIN11       AIN10
-#   Load Cell 4                            AIN9        AIN8
-# So ainp = the Signal(+) pin and ainm = the Signal(-) pin, i.e. the ADC measures
-# Signal(+) minus Signal(-), the natural direction, so sign = +1.
-# (The old 2-gauge code measured AIN7-AIN6 and AIN5-AIN4, which is Signal(-)
-#  minus Signal(+); that is why it needed "baseline - raw". The final output
-#  direction here is identical to the old code: no behavior change for LC1/LC2.)
+# CURRENT WIRING (from the lab):         white wire   green wire
+#   Load Cell 1                            AIN0         AIN1
+#   Load Cell 2                            AIN2         AIN3
+#   Load Cell 3                            AIN4         AIN5
+#   Load Cell 4                            AIN6         AIN7
+#
+# ASSUMPTION: green = Signal(+) and white = Signal(-). This is the common color
+# code for 4-wire load cells, but it varies by manufacturer, so it is only a
+# guess. It is harmless if wrong: swapping + and - just flips the sign of the
+# reading. Load each cell once and, if it reads negative when it should be
+# positive, change that cell's sign to -1.
+# ainp = pin on the green wire (Signal +), ainm = pin on the white wire (Signal -)
 CHANNELS = [
-    {"name": "LoadCell1", "ainp": 4,  "ainm": 5,  "sign": +1},   # AIN4  - AIN5   (old "Gauge 2")
-    {"name": "LoadCell2", "ainp": 6,  "ainm": 7,  "sign": +1},   # AIN6  - AIN7   (old "Gauge 1")
-    {"name": "LoadCell3", "ainp": 11, "ainm": 10, "sign": +1},   # AIN11 - AIN10  (NEW)
-    {"name": "LoadCell4", "ainp": 9,  "ainm": 8,  "sign": +1},   # AIN9  - AIN8   (NEW)
+    {"name": "LoadCell1", "ainp": 1, "ainm": 0, "sign": +1},   # AIN1 - AIN0
+    {"name": "LoadCell2", "ainp": 3, "ainm": 2, "sign": +1},   # AIN3 - AIN2
+    {"name": "LoadCell3", "ainp": 5, "ainm": 4, "sign": +1},   # AIN5 - AIN4
+    {"name": "LoadCell4", "ainp": 7, "ainm": 6, "sign": +1},   # AIN7 - AIN6
 ]
 
 # --- Filter speed vs noise  (THE setting that decides your sample rate) -------
